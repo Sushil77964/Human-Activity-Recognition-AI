@@ -1,5 +1,6 @@
 import cv2
 import mediapipe as mp
+import time
 
 # Initialize MediaPipe Pose
 mp_pose = mp.solutions.pose
@@ -13,9 +14,10 @@ pose = mp_pose.Pose(
 # Drawing utility
 mp_draw = mp.solutions.drawing_utils
 
-
+previous_left_ankle_y = None
 # ---------------- Activity Detection ----------------
 def detect_activity(landmarks):
+    global previous_left_ankle_y
 
     LEFT_SHOULDER = landmarks[11]
     RIGHT_SHOULDER = landmarks[12]
@@ -29,6 +31,8 @@ def detect_activity(landmarks):
     LEFT_KNEE = landmarks[25]
     RIGHT_KNEE = landmarks[26]
 
+    LEFT_ANKLE = landmarks[27]
+
     activity = "Standing"
 
     # Hand Raised
@@ -39,8 +43,20 @@ def detect_activity(landmarks):
     elif LEFT_HIP.y > LEFT_KNEE.y - 0.05 and RIGHT_HIP.y > RIGHT_KNEE.y - 0.05:
         activity = "Sitting"
 
+    # Walking
+    elif previous_left_ankle_y is not None:
+        movement = abs(LEFT_ANKLE.y - previous_left_ankle_y)
+
+        if movement > 0.015:
+            activity = "Walking"
+
+    previous_left_ankle_y = LEFT_ANKLE.y
+
     return activity
 
+# FPS Variables
+prev_time = 0
+curr_time = 0
 
 # Open webcam
 cap = cv2.VideoCapture(0)
@@ -56,6 +72,11 @@ while True:
 
     # Mirror View
     frame = cv2.flip(frame, 1)
+
+    # Calculate FPS
+    curr_time = time.time()
+    fps = 1 / (curr_time - prev_time) if curr_time != prev_time else 0
+    prev_time = curr_time
 
     # Convert BGR to RGB
     rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
@@ -85,7 +106,16 @@ while True:
             (0, 255, 0),
             2
         )
-
+        # Display FPS
+        cv2.putText(
+            frame,
+            f"FPS: {int(fps)}",
+            (20, 80),
+        cv2.FONT_HERSHEY_SIMPLEX,
+            0.8,
+            (255, 0, 0),
+            2
+)
     # Show Output
     cv2.imshow("Human Activity Recognition AI", frame)
 
